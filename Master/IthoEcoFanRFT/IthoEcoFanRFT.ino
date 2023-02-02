@@ -56,17 +56,18 @@ void setup(void) {
   delay(500);
   Serial.println("setup begin");
   rf.setDeviceID(13, 123, 42); //DeviceID used to send commands, can also be changed on the fly for multi itho control
+  //rf.setRemoteType(RemoteTypes::RFTCVE); //DeviceType used to send commands
   rf.init();
   Serial.println("setup done");
-  sendRegister();
+  sendRegister(); //send join command
   Serial.println("join command sent");
   pinMode(ITHO_IRQ_PIN, INPUT);
   attachInterrupt(ITHO_IRQ_PIN, ITHOcheck, FALLING);
 }
 
 void loop(void) {
-  // do whatever you want, check (and reset) the ITHOhasPacket flag whenever you like
   if (ITHOhasPacket) {
+    ITHOhasPacket = false; // clear the interrupt flag
     if (rf.checkForNewPacket()) {
       IthoCommand cmd = rf.getLastCommand();
       if (++RFTcommandpos > 2) RFTcommandpos = 0;  // store information in next entry of ringbuffers
@@ -74,15 +75,15 @@ void loop(void) {
       RFTRSSI[RFTcommandpos]    = rf.ReadRSSI();
       bool chk = rf.checkID(RFTid);
       RFTidChk[RFTcommandpos]   = chk;
-      if ((cmd != IthoUnknown)) {  // only act on good cmd and correct id.
+      if ((cmd != IthoUnknown)) {  // only act on good cmd
         showPacket();
       }
     }
   }
 }
 
-#if defined (ESP8266) && defined (ESP32)
-ICACHE_RAM_ATTR void ITHOcheck() {
+#if defined (ESP8266) || defined (ESP32)
+IRAM_ATTR void ITHOcheck() {
 #else
 void ITHOcheck() {
 #endif
@@ -90,7 +91,6 @@ void ITHOcheck() {
 }
 
 void showPacket() {
-  ITHOhasPacket = false;
   int8_t goodpos = findRFTlastCommand();
   if (goodpos != -1)  RFTlastCommand = RFTcommand[goodpos];
   else                RFTlastCommand = IthoUnknown;
@@ -121,42 +121,8 @@ void showPacket() {
   Serial.print(rf.getLastIDstr(false));
 
   Serial.print(F(" / Command = "));
-  //show command
-  switch (RFTlastCommand) {
-    case IthoUnknown:
-      Serial.print("unknown\n");
-      break;
-    case IthoStandby:
-      Serial.print("standby\n");
-      break;      
-    case IthoLow:
-      Serial.print("low\n");
-      break;
-    case IthoMedium:
-      Serial.print("medium\n");
-      break;
-    case IthoHigh:
-      Serial.print("high\n");
-      break;
-    case IthoFull:
-      Serial.print("full\n");
-      break;
-    case IthoTimer1:
-      Serial.print("timer1\n");
-      break;
-    case IthoTimer2:
-      Serial.print("timer2\n");
-      break;
-    case IthoTimer3:
-      Serial.print("timer3\n");
-      break;
-    case IthoJoin:
-      Serial.print("join\n");
-      break;
-    case IthoLeave:
-      Serial.print("leave\n");
-      break;
-  }
+  Serial.println(rf.rem_cmd_to_name(RFTlastCommand));
+  
 }
 
 uint8_t findRFTlastCommand() {
@@ -177,9 +143,9 @@ void sendRegister() {
 }
 
 void sendStandbySpeed() {
-  Serial.println("sending standby...");
-  rf.sendCommand(IthoStandby);
-  Serial.println("sending standby done.");
+  Serial.println("sending away...");
+  rf.sendCommand(IthoAway);
+  Serial.println("sending away done.");
 }
 
 void sendLowSpeed() {
